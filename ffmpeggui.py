@@ -14,10 +14,8 @@ class App(ctk.CTk):
         
         self.button = ctk.CTkButton(self, text="Close", command=self.close)
         self.button.grid(row=1, column=2, padx=20, pady=20, sticky="e")
-
         self.button = ctk.CTkButton(self, text="Compress", command=self.compress)
         self.button.grid(row=1, column=0, padx=20, pady=20, sticky="w")
-
         self.button = ctk.CTkButton(self, text="Stop process", command=self.stop_process)
         self.button.grid(row=1, column=1, padx=0, pady=20, sticky="w")
 
