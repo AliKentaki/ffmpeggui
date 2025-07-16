@@ -19,6 +19,7 @@ class UploadFrame(ctk.CTkFrame):
             self,
             bg_color="gray",
             state="disabled",
+            wrap="word",
             corner_radius=0,
             )
 
@@ -45,6 +46,7 @@ class UploadFrame(ctk.CTkFrame):
             filetypes = [("Video files", "*.mp4*")])
         
         self.selected_files.configure(state="normal")
+
 
         for i, filepath in enumerate(filepath, start=1):
             filename = os.path.basename(filepath)
