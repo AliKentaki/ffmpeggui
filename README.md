@@ -20,57 +20,6 @@ Ein einfaches GUI-Tool zur Video-Komprimierung mit [FFmpeg](https://ffmpeg.org/)
 3. **Starten:** Die Videos werden nacheinander mit `ffmpeg` verarbeitet.
 4. **Ausgabe:** Die komprimierten Dateien landen im selben Ordner und heißen z. B. `video_komprimiert.mp4`.
 
----
-
-## Voraussetzungen & Build
-
-Falls du das Projekt selbst ausführen oder bauen willst:
-
-### Benötigte Dateien
-
-* `ffmpeg.exe`
-* `ffprobe.exe`
-
-Download unter: [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
-
-Lade die Dateien herunter und platziere sie im selben Verzeichnis wie das Python-Skript.
-
-### Build-Anleitung mit `pyinstaller`:
-
-```bash
-pip install pyinstaller
-pyinstaller --onefile --noconsole --add-binary="ffmpeg.exe;." --add-binary="ffprobe.exe;." dein_scriptname.py
-```
-
-Die ausführbare Datei findest du dann im Ordner `dist/`.
-
----
-
-## Abhängigkeiten
-
-Installiere die benötigten Python-Pakete mit:
-
-```bash
-pip install customtkinter
-pip install CustomTkinterMessagebox
-```
-
-> Das Tool verwendet `customtkinter` für modernes UI-Design.
-
----
-
-## Ordnerstruktur
-
-```
-projekt/
-├── ffmpeg.exe
-├── ffprobe.exe
-├── dein_script.py
-├── README.md
-```
-
----
-
 ## Hinweise
 
 * Das Tool verarbeitet aktuell nur `.mp4`-Dateien.
