@@ -1,14 +1,23 @@
 import os
 import subprocess
 import threading
+import json
+import logging
 from tkinter import filedialog
 import customtkinter as ctk
+from CustomTkinterMessagebox import CTkMessagebox
+import re
+
+
+# Logging (statt print)
+logging.basicConfig(level=logging.INFO)
 
 # Design-Konstanten
 ctk.set_default_color_theme("blue")
 ctk.set_appearance_mode("System")
 
 DEFAULT_FONT = ("Roboto", 14)
+FONT_MONO = ("Roboto Mono", 12)
 
 COLOR_BUTTON_ACTIVE = "#DD9A38"
 COLOR_BUTTON_HOVER = "#E1B845"
@@ -18,6 +27,8 @@ COLOR_BACKGROUND = "#C2BFC3"
 COLOR_CONSOLE_BG = "#3E3947"
 COLOR_CONSOLE_TEXT = "#FFFFFF"
 COLOR_TEXT_DARK = "#000000"
+TEXTBOX_BG = "#3E3947"
+TEXTBOX_FG = "#FFFFFF"
 
 WELCOME_TEXT = (
     "Hier werden die zu komprimierenden Dateien aufgelistet.\n"
@@ -54,17 +65,15 @@ class UploadFrame(ctk.CTkFrame):
         )
         self.btn_clear.grid(row=0, column=0, columnspan=2, pady=5, sticky="w")
 
-        self.selected_files_box = ctk.CTkTextbox(
-            self,
-            bg_color="#3E3947",
-            state="normal",
-            wrap="word",
-            corner_radius=6,
-            font=ctk.CTkFont(*DEFAULT_FONT)
-        )
+        self.selected_files_box = self.create_textbox()
         self.selected_files_box.insert("end", WELCOME_TEXT)
+        self.selected_files_box.tag_config("welcome", foreground=TEXTBOX_FG)
         self.selected_files_box.configure(state="disabled")
-        self.selected_files_box.grid(row=1, column=0, columnspan=2, pady=10, sticky="nswe")
+        self.selected_files_box.grid(row=1, column=0, pady=10, sticky="nswe")
+
+        self.videostats_box = self.create_textbox()
+        self.videostats_box.configure(state="disabled")
+        self.videostats_box.grid(row=1, column=1, padx=0, pady=10, sticky="nswe")
 
         self.btn_close = ctk.CTkButton(
             self, text="Schließen",
@@ -88,6 +97,16 @@ class UploadFrame(ctk.CTkFrame):
         )
         self.btn_compressionrate.grid(row=2, column=0, pady=5, sticky="w")
 
+    def create_textbox(self):
+        return ctk.CTkTextbox(
+            self,
+            bg_color=TEXTBOX_BG,
+            state="normal",
+            wrap="word",
+            corner_radius=0,
+            font=ctk.CTkFont(*DEFAULT_FONT)
+        )
+
     def on_custom_crf(self, selection):
         if selection == "Selbst auswählen":
             dialog = ctk.CTkInputDialog(
@@ -103,10 +122,13 @@ class UploadFrame(ctk.CTkFrame):
 
     def on_clear_files(self):
         self.selected_files_box.configure(state="normal")
+        self.videostats_box.configure(state="normal")
+        self.videostats_box.delete("1.0", "end")
         self.selected_files_box.delete("1.0", "end")
         self.selected_files_box.insert("end", WELCOME_TEXT, "welcome")
-        self.selected_files_box.tag_config("welcome", foreground="#FFFFFF")
+        self.selected_files_box.tag_config("welcome", foreground=TEXTBOX_FG)
         self.selected_files_box.configure(state="disabled")
+        self.videostats_box.configure(state="disabled")
         self.counter = 1
         self.filepaths.clear()
 
@@ -118,20 +140,40 @@ class UploadFrame(ctk.CTkFrame):
             filetypes=[("Video files", "*.mp4")]
         )
         self.selected_files_box.configure(state="normal")
+        self.videostats_box.configure(state="normal")
 
         if text.strip() == WELCOME_TEXT.strip() and paths:
             self.selected_files_box.delete("1.0", "end")
-        
+
         for i, path in enumerate(paths, self.counter):
             self.filepaths.append(path)
             filename = os.path.basename(path)
-            self.selected_files_box.insert("end", f"{i}. ", "index")
-            self.selected_files_box.insert("end", f"▶ {filename}\n", "filename")
-            self.selected_files_box.tag_config("index", foreground="#C2BFC3")
-            self.selected_files_box.tag_config("filename", foreground="#FFFFFF")
+            duration, size, seconds = self.get_video_info(path)
+            self.selected_files_box.insert(f"{i}.0", f"{i}. ▶ {filename}\n")
+            self.videostats_box.insert(f"{i}.0", f"{duration:<10} {size}\n")
             self.counter += 1
 
         self.selected_files_box.configure(state="disabled")
+        self.videostats_box.configure(state="disabled")
+
+    def get_video_info(self, file):
+        # Dauer
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", file],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        seconds = float(json.loads(result.stdout)["format"]["duration"])
+        minutes = int(seconds) // 60
+        secs = int(seconds) % 60
+        duration = f"{minutes:02d}:{secs:02d}"
+
+        # Größe
+        size_bytes = os.path.getsize(file)
+        size_mb = size_bytes / (1024 * 1024)
+        size = f"{size_mb:.2f} MB"
+
+        return duration, size, seconds
+
 
 
 class ConsoleFrame(ctk.CTkFrame):
@@ -147,7 +189,7 @@ class ConsoleFrame(ctk.CTkFrame):
             state="disabled",
             wrap="word",
             corner_radius=6,
-            font=ctk.CTkFont("Roboto Mono", 12)
+            font=ctk.CTkFont(*FONT_MONO)
         )
         self.console_output.grid(row=0, column=0, pady=5, sticky="nsew")
 
@@ -155,8 +197,8 @@ class ConsoleFrame(ctk.CTkFrame):
             self,
             height=20,
             corner_radius=10,
-            fg_color="#3E3947",       # Hintergrund der Leiste
-            progress_color="#DD9A38"  # Fortschrittsfarbe (Orange)
+            fg_color="#3E3947",
+            progress_color=COLOR_BUTTON_ACTIVE
         )
         self.progress_bar.set(0)
         self.progress_bar.grid(row=1, column=0, pady=5, sticky="ew")
@@ -191,41 +233,88 @@ class ButtonFrame(ctk.CTkFrame):
         )
         self.btn_stop.grid(row=1, column=0, padx=(150, 0), pady=5, sticky="w")
 
-#ffmpeg -i input.mp4 -vcodec libx264 -crf 28 output.mp4
-
     def ffmpeg_start(self):
-        threading.Thread(target=self._process_files, daemon=True).start()
+        crf, files = self._validate_ffmpeg_input()
+        if not crf:
+            return
+        threading.Thread(target=self._process_files, args=(crf, files), daemon=True).start()
 
-    def _process_files(self):
+    def _validate_ffmpeg_input(self):
         crf = self.upload_frame.btn_compressionrate.get()
+        files = self.upload_frame.filepaths
 
-        for file in self.upload_frame.filepaths:
-            base, ext = os.path.splitext(str(file))
+        if crf == "CRF-Wert wählen (niedriger = bessere Qualität)":
+            CTkMessagebox.messagebox(title="Fehler", text="Bitte CRF-Wert auswählen.") # type: ignore
+            return None, None
+        if not files:
+            CTkMessagebox.messagebox(title="Fehler", text="Keine Dateien ausgewählt.") # type: ignore
+            return None, None
+        return crf, files
+
+    def get_fps(self, file):
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", file],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        fps_str = result.stdout.strip()
+        if "/" in fps_str:
+            num, denom = map(int, fps_str.split("/"))
+            return num / denom
+        else:
+            return float(fps_str)
+
+
+# anzahl an fps = 1106 = 60 * duration in seconds
+
+    def _process_files(self, crf, files):
+        for file in files:
+            base, _ = os.path.splitext(str(file))
             output_path = base + "_komprimiert.mp4"
+
+            # fps & duration holen
+            _, _, seconds = self.upload_frame.get_video_info(file)
+            fps = self.get_fps(file)
+            total_frames = int(fps * seconds)
+
             self.process = subprocess.Popen(
                 ["ffmpeg", "-i", str(file), "-vcodec", "libx264", "-crf", crf, output_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
             )
-            if self.process.stderr is not None:
+            if self.process.stderr:
                 for line in self.process.stderr:
-                    self.console_frame.console_output.after(
-                        0,
-                        lambda l=line: self._insert_console_output(l)
-                    )
-            self.process.wait()
-        self.upload_frame.filepaths.clear()
-        print("liste: ", self.upload_frame.filepaths)
+                    self.console_frame.console_output.after(0, self._insert_console_output, line)
 
-              
+                    match = re.search(r"frame=\s*(\d+)", line)
+                    if match:
+                        current_frame = int(match.group(1))
+                        progress = self.progress_calc(current_frame, total_frames)
+                        self.console_frame.progress_bar.set(progress)
+            self.process.wait()
+
+        self.upload_frame.filepaths.clear()
+        self._insert_console_output("Verarbeitung abgeschlossen.\n")
+
+
+    
+    def progress_calc(self, current_frame, total_frames):
+        progress = current_frame / total_frames
+        return round(progress, 2)
+
+
+
+
+
     def _insert_console_output(self, text):
         box = self.console_frame.console_output
         box.configure(state="normal")
         box.insert("end", text)
         box.see("end")
         box.configure(state="disabled")
-
 
     def stop_process(self):
         if self.process:
