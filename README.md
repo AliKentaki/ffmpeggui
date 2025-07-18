@@ -4,12 +4,12 @@ Ein einfaches GUI-Tool zur Video-Komprimierung mit [FFmpeg](https://ffmpeg.org/)
 
 ## Features
 
-* 📁 Mehrfachauswahl von Videodateien (`.mp4`)
-* 📥 Warteschlange: Dateien werden nacheinander verarbeitet
-* 📊 Fortschrittsanzeige für die aktuelle Datei
-* ✅ Visuelles Feedback: Verarbeitete Dateien werden grün markiert
-* 💾 Ausgabedateien erhalten den Suffix `_komprimiert`
-* 🎛️ Auswahl des CRF-Werts (Qualitäts-/Komprimierungsstufe)
+*  Mehrfachauswahl von Videodateien (`.mp4`)
+*  Warteschlange: Dateien werden nacheinander verarbeitet
+*  Fortschrittsanzeige für die aktuelle Datei
+*  Visuelles Feedback: Verarbeitete Dateien werden grün markiert
+*  Ausgabedateien erhalten den Suffix `_komprimiert`
+*  Auswahl des CRF-Werts (Qualitäts-/Komprimierungsstufe)
 
 ---
 
@@ -22,7 +22,7 @@ Ein einfaches GUI-Tool zur Video-Komprimierung mit [FFmpeg](https://ffmpeg.org/)
 
 ---
 
-## 🛠️ Voraussetzungen & Build
+## Voraussetzungen & Build
 
 Falls du das Projekt selbst ausführen oder bauen willst:
 
