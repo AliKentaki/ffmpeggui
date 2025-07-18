@@ -41,6 +41,7 @@ class UploadFrame(ctk.CTkFrame):
         super().__init__(master)
         self.counter = 1
         self.filepaths = []
+        self.file_line_map = {}
 
         self.configure(fg_color="transparent")
         self.grid_rowconfigure(1, weight=1)
@@ -146,10 +147,15 @@ class UploadFrame(ctk.CTkFrame):
             self.selected_files_box.delete("1.0", "end")
 
         for i, path in enumerate(paths, self.counter):
+            
             self.filepaths.append(path)
             filename = os.path.basename(path)
             duration, size, seconds = self.get_video_info(path)
-            self.selected_files_box.insert(f"{i}.0", f"{i}. ▶ {filename}\n")
+            line_index = str(i)
+            self.file_line_map[path] = i
+            self.selected_files_box.insert(f"{line_index}.0", f"{i}. ▶ {filename}\n")
+            self.selected_files_box.tag_add(f"file_{i}", f"{line_index}.0", f"{line_index}.end")
+            self.selected_files_box.tag_config(f"file_{i}", foreground=TEXTBOX_FG)
             self.videostats_box.insert(f"{i}.0", f"{duration:<10} {size}\n")
             self.counter += 1
 
@@ -266,11 +272,10 @@ class ButtonFrame(ctk.CTkFrame):
         else:
             return float(fps_str)
 
-
-# anzahl an fps = 1106 = 60 * duration in seconds
-
     def _process_files(self, crf, files):
         for file in files:
+            line_index = self.upload_frame.file_line_map[file]
+            tag_name = f"file_{line_index}"
             base, _ = os.path.splitext(str(file))
             output_path = base + "_komprimiert.mp4"
 
@@ -285,6 +290,7 @@ class ButtonFrame(ctk.CTkFrame):
                 stderr=subprocess.PIPE,
                 text=True
             )
+            self.upload_frame.selected_files_box.tag_config(tag_name, foreground=COLOR_BUTTON_ACTIVE)
             if self.process.stderr:
                 for line in self.process.stderr:
                     self.console_frame.console_output.after(0, self._insert_console_output, line)
@@ -295,6 +301,7 @@ class ButtonFrame(ctk.CTkFrame):
                         progress = self.progress_calc(current_frame, total_frames)
                         self.console_frame.progress_bar.set(progress)
             self.process.wait()
+            self.upload_frame.selected_files_box.tag_config(tag_name, foreground="green")
 
         self.upload_frame.filepaths.clear()
         self._insert_console_output("Verarbeitung abgeschlossen.\n")
