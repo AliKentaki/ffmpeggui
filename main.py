@@ -3,13 +3,12 @@ import subprocess
 import threading
 import json
 import logging
+import re
 from tkinter import filedialog
 import customtkinter as ctk
 from CustomTkinterMessagebox import CTkMessagebox
-import re
 
-
-# Logging (statt print)
+# Logging
 logging.basicConfig(level=logging.INFO)
 
 # Design-Konstanten
@@ -30,11 +29,13 @@ COLOR_TEXT_DARK = "#000000"
 TEXTBOX_BG = "#3E3947"
 TEXTBOX_FG = "#FFFFFF"
 
+FFMPEG_PATH = os.path.join(os.path.dirname(__file__), "ffmpeg.exe")
+FFPROBE_PATH = os.path.join(os.path.dirname(__file__), "ffprobe.exe")
+
 WELCOME_TEXT = (
     "Hier werden die zu komprimierenden Dateien aufgelistet.\n"
     "Klicke auf 'Dateien auswählen' um Videos auszuwählen."
 )
-
 
 class UploadFrame(ctk.CTkFrame):
     def __init__(self, master):
@@ -147,7 +148,6 @@ class UploadFrame(ctk.CTkFrame):
             self.selected_files_box.delete("1.0", "end")
 
         for i, path in enumerate(paths, self.counter):
-            
             self.filepaths.append(path)
             filename = os.path.basename(path)
             duration, size, seconds = self.get_video_info(path)
@@ -163,24 +163,27 @@ class UploadFrame(ctk.CTkFrame):
         self.videostats_box.configure(state="disabled")
 
     def get_video_info(self, file):
-        # Dauer
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", file],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            [FFPROBE_PATH, "-v", "error", "-show_entries", "format=duration", "-of", "json", file],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            startupinfo=startupinfo
+
         )
         seconds = float(json.loads(result.stdout)["format"]["duration"])
         minutes = int(seconds) // 60
         secs = int(seconds) % 60
         duration = f"{minutes:02d}:{secs:02d}"
 
-        # Größe
         size_bytes = os.path.getsize(file)
         size_mb = size_bytes / (1024 * 1024)
         size = f"{size_mb:.2f} MB"
 
         return duration, size, seconds
-
-
 
 class ConsoleFrame(ctk.CTkFrame):
     def __init__(self, master):
@@ -203,7 +206,7 @@ class ConsoleFrame(ctk.CTkFrame):
             self,
             height=20,
             corner_radius=10,
-            fg_color="#3E3947",
+            fg_color=COLOR_CONSOLE_BG,
             progress_color=COLOR_BUTTON_ACTIVE
         )
         self.progress_bar.set(0)
@@ -211,7 +214,6 @@ class ConsoleFrame(ctk.CTkFrame):
 
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
-
 
 class ButtonFrame(ctk.CTkFrame):
     def __init__(self, master, font_style, console_frame, upload_frame):
@@ -248,7 +250,6 @@ class ButtonFrame(ctk.CTkFrame):
     def _validate_ffmpeg_input(self):
         crf = self.upload_frame.btn_compressionrate.get()
         files = self.upload_frame.filepaths
-
         if crf == "CRF-Wert wählen (niedriger = bessere Qualität)":
             CTkMessagebox.messagebox(title="Fehler", text="Bitte CRF-Wert auswählen.") # type: ignore
             return None, None
@@ -258,19 +259,22 @@ class ButtonFrame(ctk.CTkFrame):
         return crf, files
 
     def get_fps(self, file):
+        startupinfo = subprocess.STARTUPINFO()
+        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", file],
+            [FFPROBE_PATH, "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=r_frame_rate", "-of", "default=noprint_wrappers=1:nokey=1", file],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
-        )
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+            startupinfo=startupinfo
+            )
         fps_str = result.stdout.strip()
         if "/" in fps_str:
             num, denom = map(int, fps_str.split("/"))
             return num / denom
-        else:
-            return float(fps_str)
+        return float(fps_str)
 
     def _process_files(self, crf, files):
         for file in files:
@@ -278,23 +282,23 @@ class ButtonFrame(ctk.CTkFrame):
             tag_name = f"file_{line_index}"
             base, _ = os.path.splitext(str(file))
             output_path = base + "_komprimiert.mp4"
-
-            # fps & duration holen
             _, _, seconds = self.upload_frame.get_video_info(file)
             fps = self.get_fps(file)
             total_frames = int(fps * seconds)
-
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             self.process = subprocess.Popen(
-                ["ffmpeg", "-i", str(file), "-vcodec", "libx264", "-crf", crf, output_path],
+                [FFMPEG_PATH, "-i", str(file), "-vcodec", "libx264", "-crf", crf, output_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                startupinfo=startupinfo
             )
             self.upload_frame.selected_files_box.tag_config(tag_name, foreground=COLOR_BUTTON_ACTIVE)
             if self.process.stderr:
                 for line in self.process.stderr:
                     self.console_frame.console_output.after(0, self._insert_console_output, line)
-
                     match = re.search(r"frame=\s*(\d+)", line)
                     if match:
                         current_frame = int(match.group(1))
@@ -306,15 +310,8 @@ class ButtonFrame(ctk.CTkFrame):
         self.upload_frame.filepaths.clear()
         self._insert_console_output("Verarbeitung abgeschlossen.\n")
 
-
-    
     def progress_calc(self, current_frame, total_frames):
-        progress = current_frame / total_frames
-        return round(progress, 2)
-
-
-
-
+        return round(current_frame / total_frames, 2)
 
     def _insert_console_output(self, text):
         box = self.console_frame.console_output
@@ -328,11 +325,10 @@ class ButtonFrame(ctk.CTkFrame):
             self.process.terminate()
             self._insert_console_output("Prozess gestoppt\n")
 
-
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("ffmpeg GUI")
+        self.title("FFMPEG GUI")
         self.geometry("1200x600")
         self.configure(bg_color=COLOR_BACKGROUND)
         font_style = ctk.CTkFont(*DEFAULT_FONT)
@@ -348,7 +344,6 @@ class App(ctk.CTk):
 
         self.button_frame = ButtonFrame(self, font_style, self.console_frame, self.upload_frame)
         self.button_frame.grid(row=1, column=0, padx=10, pady=0, sticky="ew")
-
 
 if __name__ == "__main__":
     app = App()
