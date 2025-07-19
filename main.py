@@ -8,7 +8,6 @@ from tkinter import filedialog
 import customtkinter as ctk
 from CustomTkinterMessagebox import CTkMessagebox
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 
 # Design-Konstanten
@@ -37,6 +36,8 @@ WELCOME_TEXT = (
     "Klicke auf 'Dateien auswählen' um Videos auszuwählen."
 )
 
+#  Box für Dateiauflistung ; Box für Videodaten ; "Datei auswählen"-Button
+# "Liste leeren"-Button ; "Schließen"-Button ; "CRF-Auswählen"-Button
 class UploadFrame(ctk.CTkFrame):
     def __init__(self, master):
         super().__init__(master)
@@ -151,6 +152,8 @@ class UploadFrame(ctk.CTkFrame):
             self.filepaths.append(path)
             filename = os.path.basename(path)
             duration, size, seconds = self.get_video_info(path)
+
+            # Tag-Vergabe der einzelnen Zeilen pro Datei für späteres "in progress" und "finished" färben (orange/grün)
             line_index = str(i)
             self.file_line_map[path] = i
             self.selected_files_box.insert(f"{line_index}.0", f"{i}. ▶ {filename}\n")
@@ -162,6 +165,7 @@ class UploadFrame(ctk.CTkFrame):
         self.selected_files_box.configure(state="disabled")
         self.videostats_box.configure(state="disabled")
 
+    # mithilfe von FFprobe Videodaten wie Dauer + Größe erhalten
     def get_video_info(self, file):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -185,6 +189,7 @@ class UploadFrame(ctk.CTkFrame):
 
         return duration, size, seconds
 
+# Konsolen-Fenster ; Fortschrittsbalken 
 class ConsoleFrame(ctk.CTkFrame):
     def __init__(self, master):
         super().__init__(master)
@@ -215,6 +220,8 @@ class ConsoleFrame(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
+# "Prozess Starten"-Button ; "Prozess Stoppen"-Button
+# FFmpeg/FFProbe Integrierung findet hier statt
 class ButtonFrame(ctk.CTkFrame):
     def __init__(self, master, font_style, console_frame, upload_frame):
         super().__init__(master)
@@ -258,6 +265,8 @@ class ButtonFrame(ctk.CTkFrame):
             return None, None
         return crf, files
 
+    # da es keine direkte Möglichkeit gibt den Fortschritt direkt aus FFmpeg herauszulesen:
+    # fps und verarbeitete Frames für die Berechnung des Fortschritts ermitteln (verarbeitete frames // gesamte frames (fps * sekunden))
     def get_fps(self, file):
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
